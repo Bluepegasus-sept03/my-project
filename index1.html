@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TAC Mains Controller System</title>
+  
+  <meta name="theme-color" content="#3182ce">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- MQTT Client Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+  <!-- Google Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      background: #eef2f5; 
+      text-align: center; 
+      padding: 10px; 
+      margin: 0; 
+      color: #2d3748;
+      user-select: none;
+    }
+    .card { 
+      background: #ffffff; 
+      border-radius: 20px; 
+      padding: 20px 16px; 
+      max-width: 440px; 
+      margin: 8px auto; 
+      box-shadow: 0 8px 24px rgba(0,0,0,0.07); 
+      position: relative; 
+    }
+    .brand-container { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+    .brand-logo { width: 42px; height: 42px; border-radius: 10px; object-fit: contain; background: #f7fafc; }
+    .brand-name { font-size: 19px; font-weight: bold; color: #1a202c; margin: 0; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid #edf2f7; padding-bottom: 10px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; }
+    .mqtt-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; transition: background-color 0.3s; }
+    .mqtt-connected { background-color: #38a169; box-shadow: 0 0 7px rgba(56, 161, 105, 0.9); }
+    .mqtt-disconnected { background-color: #e53e3e; box-shadow: 0 0 7px rgba(229, 62, 62, 0.9); }
+    .btn-icon { background: #edf2f7; border: 1px solid #cbd5e0; border-radius: 8px; padding: 7px 11px; cursor: pointer; font-size: 15px; }
+    .btn-logout { background: #718096; color: white; border: none; padding: 7px 13px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .input-field { width: 100%; padding: 13px; margin: 8px 0; border: 1px solid #cbd5e0; border-radius: 10px; font-size: 15px; outline: none; }
+    .password-container { position: relative; width: 100%; }
+    .password-container input { width: 100%; padding: 13px 44px 13px 13px; margin: 8px 0; border: 1px solid #cbd5e0; border-radius: 10px; font-size: 15px; outline: none; }
+    .eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 18px; color: #718096; }
+    
+    /* Date & Clock Banner */
+    .date-banner { 
+      background: #edf2f7; 
+      padding: 10px 14px; 
+      border-radius: 12px; 
+      font-size: 13px; 
+      font-weight: 700; 
+      color: #2d3748; 
+      margin-bottom: 14px; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+    }
+    .btn-cal-toggle {
+      background: #ffffff;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #3182ce;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .status-circle-container { display: flex; justify-content: center; align-items: center; margin: 10px 0 16px 0; }
+    .status-circle {
+      width: 82px; height: 82px; border-radius: 50%; display: flex; justify-content: center; align-items: center;
+      font-size: 18px; font-weight: bold; color: #ffffff; border: 3px solid #ffffff; transition: all 0.3s ease;
+    }
+    .status-circle-on { background: radial-gradient(circle, #38a169, #22543d); box-shadow: 0 0 16px rgba(56, 161, 105, 0.85); }
+    .status-circle-off { background: radial-gradient(circle, #e53e3e, #742a2a); box-shadow: 0 0 16px rgba(229, 62, 62, 0.85); }
+    .tab-bar { display: flex; background: #e2e8f0; border-radius: 25px; padding: 4px; margin-bottom: 18px; }
+    .tab-btn { flex: 1; padding: 11px; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; background: transparent; transition: 0.2s; font-size: 14px; color: #4a5568; }
+    .tab-btn.active { background: white; color: #3182ce; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+    .btn-group { display: flex; justify-content: center; gap: 28px; margin: 24px 0; }
+    .btn-round { 
+      width: 106px; height: 106px; border-radius: 50%; font-size: 21px; font-weight: bold; color: white; border: 4px solid white; cursor: pointer; 
+      box-shadow: 0 8px 20px rgba(0,0,0,0.18); transition: transform 0.1s; 
+    }
+    .btn-round:active { transform: scale(0.92); }
+    .btn-on { background: radial-gradient(circle, #38a169, #276749); }
+    .btn-off { background: radial-gradient(circle, #e53e3e, #9b2c2c); }
+    .round-indicator { width: 16px; height: 16px; border-radius: 50%; display: inline-block; vertical-align: middle; margin: 0 6px; }
+    .ind-green { background: radial-gradient(circle, #38a169, #22543d); }
+    .ind-red { background: radial-gradient(circle, #e53e3e, #742a2a); }
+    .toggle-box { background: #f7fafc; padding: 12px 14px; border-radius: 10px; margin-bottom: 14px; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px 2px; text-align: center; }
+    input[type='time'] { padding: 5px 3px; font-size: 13px; border: 1px solid #cbd5e0; border-radius: 6px; outline: none; background: #f8fafc; width: 95%; }
+    input[type='checkbox'] { width: 18px; height: 18px; cursor: pointer; accent-color: #3182ce; }
+    .today-row { background-color: #fefcbf !important; font-weight: bold; border: 2px solid #ecc94b; }
+    .today-badge { background: #d69e2e; color: white; font-size: 8px; padding: 2px 3px; border-radius: 4px; margin-left: 2px; }
+    .save-btn { width: 100%; padding: 14px; background: #3182ce; color: white; border: none; border-radius: 10px; margin-top: 16px; font-weight: bold; cursor: pointer; font-size: 15px; }
+    .btn-submit { width: 100%; padding: 14px; background: #3182ce; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 6px; }
+    
+    /* Copyright Footer Styling */
+    .copyright-footer {
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid #edf2f7;
+      font-size: 11px;
+      color: #718096;
+      line-height: 1.5;
+    }
+
+    /* Modal Overlays (Settings & Calendar) */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; padding: 12px; }
+    .modal-content { background: white; border-radius: 18px; padding: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; text-align: left; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #edf2f7; padding-bottom: 8px; }
+    .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #718096; }
+    .section-title { font-size: 14px; font-weight: bold; color: #2b6cb0; margin: 12px 0 6px 0; }
+    .divider { border-top: 1px dashed #cbd5e0; margin: 14px 0; }
+
+    /* Interactive Calendar Grid Styling */
+    .cal-mode-tabs { display: flex; background: #edf2f7; border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+    .cal-mode-btn { flex: 1; padding: 7px; border: none; border-radius: 8px; font-weight: bold; font-size: 12px; cursor: pointer; background: transparent; color: #4a5568; }
+    .cal-mode-btn.active { background: #3182ce; color: white; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+    .cal-header-day { font-size: 11px; font-weight: bold; color: #718096; padding: 4px 0; }
+    .cal-cell { font-size: 12px; padding: 7px 0; border-radius: 6px; background: #f8fafc; border: 1px solid #edf2f7; }
+    .cal-cell.today { background: #3182ce; color: white; font-weight: bold; border-color: #2b6cb0; }
+    .cal-cell.empty { background: transparent; border: none; }
+  </style>
+</head>
+<body>
+
+<!-- ===== १. LOGIN SCREEN ===== -->
+<div class="card" id="login-section">
+  <div class="brand-container">
+    <img id="login-brand-logo" class="brand-logo" src="https://via.placeholder.com/60/3182ce/ffffff?text=TAC" alt="Logo">
+    <h2 id="login-brand-name" class="brand-name">TAC Mains Controller</h2>
+  </div>
+  <p id="login-hint-text" style="color:#718096; font-size:13px; margin-bottom:15px;">Login Portal</p>
+  
+  <div>
+    <input type="text" id="auth-identifier" class="input-field" placeholder="Username or Gmail ID">
+    <div class="password-container">
+      <input type="password" id="auth-password" placeholder="Password">
+      <button type="button" class="eye-btn" onclick="togglePasswordVisibility('auth-password', this)">👁️</button>
+    </div>
+    <button class="btn-submit" onclick="handleUnifiedLogin()">Login</button>
+  </div>
+  <p id="login-error" style="color: #e53e3e; display: none; margin-top: 10px; font-size: 13px;"></p>
+
+  <div class="copyright-footer">
+    &copy; 2026 <b>TAC Hydro Consultancy Pvt. Ltd.</b><br>All Rights Reserved.
+  </div>
+</div>
+
+<!-- ===== २. MAIN DASHBOARD ===== -->
+<div class="card" id="dashboard-section" style="display: none;">
+  <div class="top-bar">
+    <div class="brand-container" style="margin-bottom: 0;">
+      <img id="dash-brand-logo" class="brand-logo" src="https://via.placeholder.com/60/3182ce/ffffff?text=TAC" alt="Logo">
+      <span id="dash-brand-name" class="brand-name" style="font-size: 16px;">TAC Mains Controller</span>
+    </div>
+    <div class="top-actions">
+      <span id="mqtt-status-dot" class="mqtt-dot mqtt-disconnected" title="MQTT Disconnected"></span>
+      <button class="btn-icon" onclick="openSettings()">⚙️</button>
+      <button class="btn-logout" onclick="handleUnifiedLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Live Date Banner with Calendar Popup Button -->
+  <div class="date-banner">
+    <div style="text-align: left;">
+      <span id="banner-date-text">लोड हुँदैछ...</span>
+      <div id="live-clock-text" style="color: #2b6cb0; font-size: 12px; margin-top: 2px;">00:00:00</div>
+    </div>
+    <button class="btn-cal-toggle" onclick="openCalendarModal()" title="View B.S. / A.D. Calendar">
+      📅 <span>Calendar</span>
+    </button>
+  </div>
+
+  <div class="status-circle-container">
+    <div id="main-status-circle" class="status-circle status-circle-off">OFF</div>
+  </div>
+
+  <div class="tab-bar">
+    <button id="tab-m" class="tab-btn active" onclick="switchTab('manual')">Manual Mode</button>
+    <button id="tab-s" class="tab-btn" onclick="switchTab('schedule')">7-Day Schedule</button>
+  </div>
+
+  <div id="manual-page">
+    <div class="btn-group">
+      <button class="btn-round btn-on" onclick="sendCmd('1')">ON</button>
+      <button class="btn-round btn-off" onclick="sendCmd('0')">OFF</button>
+    </div>
+    <button onclick="sendCmd('RESUME')" style="background: #4a5568; color: white; border: none; padding: 11px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px;">Resume Auto Schedule</button>
+  </div>
+
+  <div id="schedule-page" style="display: none;">
+    <div class="toggle-box">
+      <div style="display: flex; align-items: center;">
+        <b>Schedule:</b>
+        <span id="sched-dot" class="round-indicator ind-green"></span>
+        <span id="sched-text" style="font-weight: bold; color: #38a169;">ACTIVE</span>
+      </div>
+      <button onclick="toggleScheduleMaster()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e0; background: white; font-weight: bold; cursor: pointer; font-size: 12px;">Toggle</button>
+    </div>
+
+    <table>
+      <tr style="background: #edf2f7;">
+        <th>Day</th>
+        <th><input type="checkbox" id="masterTick" onclick="toggleAllDays(this)"></th>
+        <th>ON Time</th>
+        <th>OFF Time</th>
+      </tr>
+      <tbody id="sched-tbody"></tbody>
+    </table>
+    <button class="save-btn" onclick="saveSchedule()">Save Schedule</button>
+  </div>
+
+  <div class="copyright-footer">
+    &copy; 2026 <b>TAC Hydro Consultancy Pvt. Ltd.</b><br>All Rights Reserved.
+  </div>
+</div>
+
+<!-- ===== ३. INTERACTIVE CALENDAR MODAL (B.S. & A.D. CHANGEABLE) ===== -->
+<div class="modal-overlay" id="cal-modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 style="margin:0; font-size:16px;">Calendar (पात्रो)</h3>
+      <button class="modal-close" onclick="closeCalendarModal()">&times;</button>
+    </div>
+
+    <div class="cal-mode-tabs">
+      <button id="btn-mode-bs" class="cal-mode-btn active" onclick="switchCalendarMode('BS')">वि.सं. (B.S.)</button>
+      <button id="btn-mode-ad" class="cal-mode-btn" onclick="switchCalendarMode('AD')">सन् (A.D.)</button>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-weight:bold; font-size:14px; color:#2d3748;">
+      <span id="cal-month-title">Month Loading...</span>
+      <span id="cal-today-badge" style="font-size:11px; background:#e2e8f0; padding:2px 8px; border-radius:10px; color:#4a5568;">Today</span>
+    </div>
+
+    <div class="cal-grid" id="cal-days-grid"></div>
+
+    <div style="margin-top:14px; font-size:11px; color:#718096; text-align:center;">
+      * Blue highlighted cell indicates today's date.
+    </div>
+  </div>
+</div>
+
+<!-- ===== ४. SETTINGS MODAL (ENGLISH) ===== -->
+<div class="modal-overlay" id="settings-modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 style="margin:0;">Settings</h3>
+      <button class="modal-close" onclick="closeSettings()">&times;</button>
+    </div>
+    <div style="font-size: 13px; color: #718096; margin-bottom: 10px;">
+      Current User: <b id="user-display-email" style="color:#2d3748;">Default Admin</b>
+    </div>
+
+    <div class="section-title" style="color:#e53e3e;">Update ESP32 Wi-Fi</div>
+    <label style="font-size:12px; font-weight:bold;">New Wi-Fi SSID:</label>
+    <input type="text" id="new-wifi-ssid" class="input-field" style="padding:8px;" placeholder="2.4GHz Network Name">
+    <label style="font-size:12px; font-weight:bold;">New Wi-Fi Password:</label>
+    <div class="password-container">
+      <input type="password" id="new-wifi-pass" style="padding:8px 36px 8px 8px; margin:4px 0; font-size:14px;" placeholder="Network Password">
+      <button type="button" class="eye-btn" style="right:8px; font-size:16px;" onclick="togglePasswordVisibility('new-wifi-pass', this)">👁️</button>
+    </div>
+    <button class="btn-submit" style="padding:10px; font-size:13px; background:#e53e3e; margin-top:6px;" onclick="sendNewWifi()">Send New Wi-Fi to ESP32</button>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Link Personal Gmail & Password</div>
+    <label style="font-size:12px; font-weight:bold;">Your Gmail ID:</label>
+    <input type="email" id="link-gmail-input" class="input-field" style="padding:8px;" placeholder="example@gmail.com">
+    <label style="font-size:12px; font-weight:bold;">New Password:</label>
+    <div class="password-container">
+      <input type="password" id="link-pass-input" style="padding:8px 36px 8px 8px; margin:4px 0; font-size:14px;" placeholder="Password (Min. 6 chars)">
+      <button type="button" class="eye-btn" style="right:8px; font-size:16px;" onclick="togglePasswordVisibility('link-pass-input', this)">👁️</button>
+    </div>
+    <button class="btn-submit" style="padding:10px; font-size:13px; background:#2b6cb0; margin-top:6px;" onclick="handleLinkGmail()">Link / Update My Gmail</button>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Branding (Logo & Name)</div>
+    <label style="font-size:12px; font-weight:bold;">App / Company Name:</label>
+    <input type="text" id="input-company-name" class="input-field" style="padding:8px;">
+    <label style="font-size:12px; font-weight:bold;">Upload Logo Image:</label>
+    <input type="file" id="input-company-logo" accept="image/*" style="width:100%; font-size:12px; margin-top:4px;">
+    <button class="btn-submit" style="padding:10px; font-size:13px; margin-top:8px;" onclick="saveBranding()">Save Branding</button>
+  </div>
+</div>
+
+<script>
+  // Firebase Configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyBS1e95JS83kHU8SJKR0UwGAjWPQtn-P6U",
+    authDomain: "tac-mains-controller-system.firebaseapp.com",
+    projectId: "tac-mains-controller-system",
+    storageBucket: "tac-mains-controller-system.firebasestorage.app",
+    messagingSenderId: "989918358516",
+    appId: "1:989918358516:web:4aee99ecb2a7ed8f03e7a1",
+    measurementId: "G-YM06YN9WE7"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  function getLinkedGmail() { return localStorage.getItem("linked_user_email") || ""; }
+
+  function handleUnifiedLogin() {
+    const id = document.getElementById("auth-identifier").value.trim();
+    const pass = document.getElementById("auth-password").value.trim();
+    const errBox = document.getElementById("login-error");
+    const linked = getLinkedGmail();
+    errBox.style.display = "none";
+
+    if (!linked && id.toLowerCase() === "admin" && pass === "1234") {
+      sessionStorage.setItem("app_logged_in", "admin");
+      showDashboard();
+      return;
+    }
+
+    const emailToAuth = linked || id;
+    if (emailToAuth.includes("@")) {
+      auth.signInWithEmailAndPassword(emailToAuth, pass)
+        .then((res) => {
+          sessionStorage.setItem("app_logged_in", res.user.email);
+          localStorage.setItem("linked_user_email", res.user.email);
+          showDashboard();
+        })
+        .catch(err => {
+          errBox.innerText = "Login failed: " + err.message;
+          errBox.style.display = "block";
+        });
+    } else {
+      errBox.innerText = "Invalid Username or Password!";
+      errBox.style.display = "block";
+    }
+  }
+
+  function handleLinkGmail() {
+    const gmail = document.getElementById("link-gmail-input").value.trim();
+    const pass = document.getElementById("link-pass-input").value.trim();
+    if (!gmail || !pass || pass.length < 6) {
+      alert("Please enter a valid Gmail and password with at least 6 characters!");
+      return;
+    }
+    auth.createUserWithEmailAndPassword(gmail, pass)
+      .then((res) => {
+        localStorage.setItem("linked_user_email", res.user.email);
+        sessionStorage.setItem("app_logged_in", res.user.email);
+        alert("Gmail successfully linked!");
+        closeSettings();
+      })
+      .catch((err) => {
+        if (err.code === "auth/email-already-in-use") {
+          auth.signInWithEmailAndPassword(gmail, pass).then(res => {
+            localStorage.setItem("linked_user_email", res.user.email);
+            sessionStorage.setItem("app_logged_in", res.user.email);
+            alert("Existing Gmail account linked!");
+            closeSettings();
+          }).catch(e => alert("Password incorrect!"));
+        } else {
+          alert("Error: " + err.message);
+        }
+      });
+  }
+
+  function sendNewWifi() {
+    const s = document.getElementById("new-wifi-ssid").value.trim();
+    const p = document.getElementById("new-wifi-pass").value.trim();
+    if (!s || !p) {
+      alert("Please provide both SSID and Password!");
+      return;
+    }
+    if (confirm("ESP32 will save this Wi-Fi and restart immediately. Proceed?")) {
+      sendCmd(`SET_WIFI:${s},${p}`);
+      alert("New Wi-Fi sent! ESP32 is restarting...");
+      closeSettings();
+    }
+  }
+
+  function handleUnifiedLogout() {
+    sessionStorage.removeItem("app_logged_in");
+    auth.signOut().finally(() => location.reload());
+  }
+
+  function togglePasswordVisibility(id, btn) {
+    const el = document.getElementById(id);
+    el.type = (el.type === "password") ? "text" : "password";
+    btn.innerText = (el.type === "password") ? "👁️" : "🙈";
+  }
+
+  function openSettings() {
+    document.getElementById("user-display-email").innerText = sessionStorage.getItem("app_logged_in") || "Default Admin";
+    document.getElementById("link-gmail-input").value = getLinkedGmail();
+    document.getElementById("settings-modal-overlay").style.display = "flex";
+  }
+
+  function closeSettings() { document.getElementById("settings-modal-overlay").style.display = "none"; }
+
+  function showDashboard() {
+    document.getElementById("login-section").style.display = "none";
+    document.getElementById("dashboard-section").style.display = "block";
+    loadBranding();
+    startNepaliClock();
+    initScheduleTable();
+    connectMQTT();
+  }
+
+  function loadBranding() {
+    const name = localStorage.getItem("company_name") || "TAC Mains Controller";
+    const logo = localStorage.getItem("company_logo") || "https://via.placeholder.com/60/3182ce/ffffff?text=TAC";
+    document.getElementById("login-brand-name").innerText = name;
+    document.getElementById("dash-brand-name").innerText = name;
+    document.getElementById("login-brand-logo").src = logo;
+    document.getElementById("dash-brand-logo").src = logo;
+    document.getElementById("input-company-name").value = name;
+  }
+
+  function saveBranding() {
+    const n = document.getElementById("input-company-name").value.trim();
+    if (n) localStorage.setItem("company_name", n);
+    const file = document.getElementById("input-company-logo").files[0];
+    if (file) {
+      const r = new FileReader();
+      r.onload = e => {
+        localStorage.setItem("company_logo", e.target.result);
+        loadBranding();
+        alert("Branding Saved!");
+      };
+      r.readAsDataURL(file);
+    } else {
+      loadBranding();
+      alert("Name Saved!");
+    }
+  }
+
+  // ================= B.S. & A.D. CALENDAR ENGINE =================
+  const nepaliDays = ["आइतबार", "सोमबार", "मंगलबार", "बुधबार", "बिहीबार", "शुक्रबार", "शनिबार"];
+  const nepaliMonths = ["वैशाख", "जेठ", "असार", "साउन", "भदौ", "असोज", "कार्तिक", "मंसिर", "पुस", "माघ", "फागुन", "चैत"];
+  const engMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  function toNepaliDigits(s) {
+    return String(s).replace(/[0-9]/g, d => ['०','१','२','३','४','५','६','७','८','९'][d]);
+  }
+
+  function getAccurateBSDate(dateObj) {
+    const bsRefYear = 2083;
+    const refDateUTC = Date.UTC(2026, 3, 14); // 2026-04-14 = 2083-01-01
+    const curDateUTC = Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    const daysInMonths2083 = [31, 31, 32, 31, 31, 31, 30, 29, 30, 29, 30, 30];
+    let diffDays = Math.floor((curDateUTC - refDateUTC) / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 0) {
+      let bYear = bsRefYear;
+      let bMonth = 0;
+      let bDay = 1;
+      for (let i = 0; i < 12; i++) {
+        if (diffDays < daysInMonths2083[i]) {
+          bMonth = i;
+          bDay = diffDays + 1;
+          break;
+        }
+        diffDays -= daysInMonths2083[i];
+      }
+      return { year: bYear, monthIndex: bMonth, month: nepaliMonths[bMonth], day: bDay, totalDays: daysInMonths2083[bMonth] };
+    } else {
+      return { year: 2082, monthIndex: 11, month: "चैत", day: 30, totalDays: 30 };
+    }
+  }
+
+  function startNepaliClock() {
+    function updateClock() {
+      const now = new Date();
+      const bs = getAccurateBSDate(now);
+      const bsText = `${toNepaliDigits(bs.year)} ${bs.month} ${toNepaliDigits(bs.day)}, ${nepaliDays[now.getDay()]}`;
+      const adText = `${now.getDate()} ${engMonths[now.getMonth()]} ${now.getFullYear()}`;
+      
+      document.getElementById("banner-date-text").innerText = `${bsText} (${adText})`;
+      document.getElementById("live-clock-text").innerText = now.toLocaleTimeString('en-US', { hour12: false });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+  }
+
+  // ================= CALENDAR POPUP MODAL LOGIC =================
+  let currentCalMode = "BS"; // 'BS' or 'AD'
+
+  function openCalendarModal() {
+    renderCalendar();
+    document.getElementById("cal-modal-overlay").style.display = "flex";
+  }
+
+  function closeCalendarModal() {
+    document.getElementById("cal-modal-overlay").style.display = "none";
+  }
+
+  function switchCalendarMode(mode) {
+    currentCalMode = mode;
+    document.getElementById("btn-mode-bs").classList.toggle("active", mode === "BS");
+    document.getElementById("btn-mode-ad").classList.toggle("active", mode === "AD");
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const grid = document.getElementById("cal-days-grid");
+    grid.innerHTML = "";
+    const now = new Date();
+
+    if (currentCalMode === "BS") {
+      const bs = getAccurateBSDate(now);
+      document.getElementById("cal-month-title").innerText = `${bs.month} ${toNepaliDigits(bs.year)} (वि.सं.)`;
+      document.getElementById("cal-today-badge").innerText = `आज: ${toNepaliDigits(bs.day)} ${bs.month}`;
+
+      const headers = ["आइत", "सोम", "मंगल", "बुध", "बिही", "शुक्र", "शनि"];
+      headers.forEach(h => grid.innerHTML += `<div class="cal-header-day">${h}</div>`);
+
+      // महिनाको पहिलो दिनको बार पत्ता लगाउने
+      const dayOffset = (now.getDay() - ((bs.day - 1) % 7) + 7) % 7;
+      for (let i = 0; i < dayOffset; i++) {
+        grid.innerHTML += `<div class="cal-cell empty"></div>`;
+      }
+
+      for (let d = 1; d <= bs.totalDays; d++) {
+        const isToday = (d === bs.day);
+        grid.innerHTML += `<div class="cal-cell ${isToday ? 'today' : ''}">${toNepaliDigits(d)}</div>`;
+      }
+    } else {
+      // AD Mode
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const today = now.getDate();
+      document.getElementById("cal-month-title").innerText = `${engMonths[month]} ${year} (A.D.)`;
+      document.getElementById("cal-today-badge").innerText = `Today: ${today} ${engMonths[month]}`;
+
+      const headers = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      headers.forEach(h => grid.innerHTML += `<div class="cal-header-day">${h}</div>`);
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+
+      for (let i = 0; i < firstDay; i++) {
+        grid.innerHTML += `<div class="cal-cell empty"></div>`;
+      }
+
+      for (let d = 1; d <= totalDays; d++) {
+        const isToday = (d === today);
+        grid.innerHTML += `<div class="cal-cell ${isToday ? 'today' : ''}">${d}</div>`;
+      }
+    }
+  }
+
+  // ================= TABS & SCHEDULE =================
+  function switchTab(t) {
+    document.getElementById('manual-page').style.display = (t === 'manual') ? 'block' : 'none';
+    document.getElementById('schedule-page').style.display = (t === 'schedule') ? 'block' : 'none';
+    document.getElementById('tab-m').classList.toggle('active', t === 'manual');
+    document.getElementById('tab-s').classList.toggle('active', t === 'schedule');
+  }
+
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function initScheduleTable() {
+    const tbody = document.getElementById("sched-tbody");
+    tbody.innerHTML = "";
+    const todayIndex = new Date().getDay();
+    for (let i = 0; i < 7; i++) {
+      const isToday = (i === todayIndex);
+      tbody.innerHTML += `<tr ${isToday ? "class='today-row'" : ""}>
+        <td><b>${days[i]}</b>${isToday ? "<span class='today-badge'>TODAY</span>" : ""}</td>
+        <td><input type="checkbox" id="en${i}"></td>
+        <td><input type="time" id="on${i}" value="06:00"></td>
+        <td><input type="time" id="off${i}" value="18:00"></td>
+      </tr>`;
+    }
+  }
+
+  function toggleAllDays(m) {
+    for (let i = 0; i < 7; i++) {
+      const el = document.getElementById('en' + i);
+      if (el) el.checked = m.checked;
+    }
+  }
+
+  let schedActive = true;
+  function updateScheduleIndicator(act) {
+    schedActive = act;
+    document.getElementById("sched-dot").className = "round-indicator " + (act ? "ind-green" : "ind-red");
+    document.getElementById("sched-text").innerText = act ? "ACTIVE" : "OFF";
+    document.getElementById("sched-text").style.color = act ? "#38a169" : "#e53e3e";
+  }
+
+  function toggleScheduleMaster() {
+    updateScheduleIndicator(!schedActive);
+    sendCmd(schedActive ? "SCHED_ON" : "SCHED_OFF");
+  }
+
+  function saveSchedule() {
+    let str = "SCHED:";
+    for (let i = 0; i < 7; i++) {
+      const en = document.getElementById('en' + i).checked ? 1 : 0;
+      const onV = document.getElementById('on' + i).value.split(":");
+      const offV = document.getElementById('off' + i).value.split(":");
+      str += `${i},${en},${parseInt(onV[0])},${parseInt(onV[1])},${parseInt(offV[0])},${parseInt(offV[1])};`;
+    }
+    sendCmd(str);
+    alert("Schedule saved and synced to ESP32!");
+  }
+
+  // ================= MQTT CLIENT =================
+  let client;
+  const subTopic = "prashant/esp32/status";
+  const pubTopic = "prashant/esp32/control";
+  const schedTopic = "prashant/esp32/sched_data";
+
+  function setMqttDot(con) {
+    document.getElementById("mqtt-status-dot").className = "mqtt-dot " + (con ? "mqtt-connected" : "mqtt-disconnected");
+  }
+
+  function updateCircle(on) {
+    const c = document.getElementById("main-status-circle");
+    c.className = "status-circle " + (on ? "status-circle-on" : "status-circle-off");
+    c.innerText = on ? "ON" : "OFF";
+  }
+
+  function connectMQTT() {
+    const cId = "WebClient-" + Math.random().toString(16).substr(2, 8);
+    client = new Paho.MQTT.Client("broker.hivemq.com", 8000, cId);
+
+    client.onConnectionLost = () => {
+      setMqttDot(false);
+      setTimeout(connectMQTT, 2500);
+    };
+
+    client.onMessageArrived = (m) => {
+      const p = m.payloadString.trim();
+      if (m.destinationName === subTopic) {
+        if (p === "WIFI_UPDATING") {
+          const c = document.getElementById("main-status-circle");
+          c.innerText = "WAIT";
+          c.style.background = "#dd6b20";
+        } else {
+          updateCircle(p === "HIGH");
+        }
+      }
+      if (m.destinationName === schedTopic && p.startsWith("SYNC:")) {
+        const parts = p.substring(5).split(";");
+        if (parts.length > 0) {
+          updateScheduleIndicator(parts[0] === "1");
+          for (let i = 1; i < parts.length; i++) {
+            if (!parts[i].trim()) continue;
+            const d = parts[i].split(",");
+            const id = parseInt(d[0]);
+            if (id >= 0 && id < 7) {
+              document.getElementById("en" + id).checked = (d[1] === "1");
+              document.getElementById("on" + id).value = `${("0" + d[2]).slice(-2)}:${("0" + d[3]).slice(-2)}`;
+              document.getElementById("off" + id).value = `${("0" + d[4]).slice(-2)}:${("0" + d[5]).slice(-2)}`;
+            }
+          }
+        }
+      }
+    };
+
+    client.connect({
+      cleanSession: true,
+      onSuccess: () => {
+        setMqttDot(true);
+        client.subscribe(subTopic, { qos: 1 });
+        client.subscribe(schedTopic, { qos: 1 });
+        sendCmd("GET_STATUS");
+      },
+      onFailure: () => setMqttDot(false)
+    });
+  }
+
+  function sendCmd(val) {
+    if (client && client.isConnected()) {
+      const m = new Paho.MQTT.Message(val);
+      m.destinationName = pubTopic;
+      m.qos = 1;
+      client.send(m);
+    } else {
+      alert("MQTT is not connected. Please wait a few seconds.");
+    }
+  }
+
+  loadBranding();
+  if (sessionStorage.getItem("app_logged_in")) showDashboard();
+</script>
+</body>
+</html>
